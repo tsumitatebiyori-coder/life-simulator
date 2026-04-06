@@ -262,6 +262,23 @@ const majorChoices = {
   },
 }
 
+// ---------- Free Input Fallback (AI失敗時にユーザー入力を織り込む) ----------
+const freeResultTemplates = [
+  (text, age) => ({ result: `「${text}」── ${age}歳のあなたにとって、それは特別な体験になった。`, fragment: text }),
+  (text, age) => ({ result: `${text}。その瞬間、${age}歳の世界が少しだけ広がった気がした。`, fragment: text }),
+  (text, age) => ({ result: `${text}── 振り返れば、それが${age}歳の一番の思い出になるのかもしれない。`, fragment: text }),
+  (text, age) => ({ result: `${text}。誰に言われたわけでもない。自分で決めたことだから、胸を張れた。`, fragment: text }),
+  (text, age) => ({ result: `${text}── その選択が、あなたの物語に新しい色を加えた。`, fragment: text }),
+  (text, age) => ({ result: `${age}歳の日、${text}。何気ない一日のはずだったのに、ずっと心に残った。`, fragment: text }),
+  (text, age) => ({ result: `${text}。小さな決断だったけれど、確かに人生が動いた瞬間だった。`, fragment: text }),
+  (text, age) => ({ result: `「${text}」── そう決めた日の空の色を、なぜかずっと覚えている。`, fragment: text }),
+]
+
+export function generateFreeResultText(text, age) {
+  const template = freeResultTemplates[Math.floor(Math.random() * freeResultTemplates.length)]
+  return template(text, age)
+}
+
 // ---------- Ending Generator ----------
 export function generateEnding(traits, fragments) {
   const deviations = TRAIT_META.map(({ key, left, right }) => {

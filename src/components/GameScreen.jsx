@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getTemplateEvent, TRAIT_META } from '../data/templates'
+import { getTemplateEvent, generateFreeResultText, TRAIT_META } from '../data/templates'
 import { generateWithAI } from '../services/claude'
 
 const AGE_LABEL = {
@@ -19,7 +19,6 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
   const [freeResult, setFreeResult] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isFreeLoading, setIsFreeLoading] = useState(false)
-  const [useAI, setUseAI] = useState(false)
   const generatedAge = useRef(-1)
 
   useEffect(() => {
@@ -32,24 +31,11 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
     setFreeText('')
     setFreeResult(null)
 
-    const generate = async () => {
-      try {
-        if (useAI) {
-          const result = await generateWithAI(age, traits, settings, history)
-          setEventData(result)
-        } else {
-          throw new Error('use template')
-        }
-      } catch {
-        const result = getTemplateEvent(age, traits)
-        setEventData(result)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    generate()
-  }, [age, useAI])
+    // テンプレートから選択肢（サジェスト用）を取得
+    const result = getTemplateEvent(age, traits)
+    setEventData(result)
+    setIsLoading(false)
+  }, [age])
 
   const handleChoice = (choice) => {
     setSelectedChoice(choice)
@@ -59,36 +45,27 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
   const handleFreeSubmit = async () => {
     if (!freeText.trim()) return
 
-    if (useAI) {
-      setIsFreeLoading(true)
-      try {
-        const result = await generateWithAI(age, traits, settings, history, freeText.trim())
-        setFreeResult({
-          resultEvent: result.event,
-          fragment: result.fragment || freeText.trim(),
-          traits: result.traits,
-        })
-        setSelectedChoice(null)
-      } catch {
-        // AI失敗時はテンプレートのfreeResult + ユーザー入力をかけらに
-        const fallback = eventData?.freeResult || { resultEvent: `${freeText.trim()}── そう決めた${age}歳の日。`, traits: {} }
-        setFreeResult({
-          resultEvent: fallback.resultEvent,
-          fragment: freeText.trim(),
-          traits: fallback.traits,
-        })
-        setSelectedChoice(null)
-      } finally {
-        setIsFreeLoading(false)
-      }
-    } else {
-      const fallback = eventData?.freeResult || { resultEvent: `${freeText.trim()}── そう決めた${age}歳の日。`, traits: {} }
+    setIsFreeLoading(true)
+    try {
+      // まずAIで生成を試みる
+      const result = await generateWithAI(age, traits, settings, history, freeText.trim())
       setFreeResult({
-        resultEvent: fallback.resultEvent,
-        fragment: freeText.trim(),
-        traits: fallback.traits,
+        resultEvent: result.event,
+        fragment: result.fragment || freeText.trim(),
+        traits: result.traits,
       })
       setSelectedChoice(null)
+    } catch {
+      // AI失敗時：ユーザーのテキストを織り込んだフォールバック
+      const fallback = generateFreeResultText(freeText.trim(), age)
+      setFreeResult({
+        resultEvent: fallback.result,
+        fragment: fallback.fragment,
+        traits: eventData?.freeResult?.traits || {},
+      })
+      setSelectedChoice(null)
+    } finally {
+      setIsFreeLoading(false)
     }
   }
 
@@ -140,27 +117,17 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
               </div>
             )}
 
-            {/* 選択肢エリア（まだ選んでいない時） */}
+            {/* 選択エリア（まだ選んでいない時） */}
             {!hasResult && eventData && (
               <div className="choices-container">
-                <div className="choices-prompt">{eventData.prompt}</div>
-                {eventData.choices.map((choice, i) => (
-                  <button key={i} className="choice-btn" onClick={() => handleChoice(choice)}>
-                    <div className="choice-btn-label">{choice.label}</div>
-                    <div className="choice-btn-desc">{choice.description}</div>
-                  </button>
-                ))}
-
-                {/* 自由入力 */}
-                <div className="free-input-area">
-                  <div className="free-input-divider">
-                    <span>または</span>
-                  </div>
+                {/* 自由入力（メイン） */}
+                <div className="free-input-main">
+                  <div className="choices-prompt">{eventData.prompt}</div>
                   <div className="free-input-row">
                     <input
                       type="text"
                       className="free-input"
-                      placeholder="自分で決める..."
+                      placeholder="あなたならどうする？"
                       value={freeText}
                       onChange={(e) => setFreeText(e.target.value)}
                       onKeyDown={(e) => {
@@ -175,6 +142,21 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
                     >
                       {isFreeLoading ? '...' : '決定'}
                     </button>
+                  </div>
+                  <div className="free-input-hint">AIがあなたの言葉に応えます</div>
+                </div>
+
+                {/* テンプレ選択肢（サジェスト） */}
+                <div className="suggest-area">
+                  <div className="suggest-divider">
+                    <span>迷ったら</span>
+                  </div>
+                  <div className="suggest-buttons">
+                    {eventData.choices.map((choice, i) => (
+                      <button key={i} className="suggest-btn" onClick={() => handleChoice(choice)}>
+                        {choice.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -230,20 +212,6 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
             {age >= 24 ? 'エンディングへ' : '次の年へ →'}
           </button>
         )}
-      </div>
-
-      {/* AI Toggle */}
-      <div style={{ textAlign: 'center', marginTop: '8px' }}>
-        <button
-          className="btn btn-ghost"
-          style={{ fontSize: '0.75rem', padding: '8px 16px' }}
-          onClick={() => {
-            setUseAI(!useAI)
-            generatedAge.current = -1
-          }}
-        >
-          {useAI ? '📖 テンプレートモードに切替' : '✨ AI生成モードに切替'}
-        </button>
       </div>
     </>
   )
