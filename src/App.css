@@ -420,6 +420,118 @@ h1, h2, h3 {
   color: var(--text-light);
 }
 
+/* ==================== Free Input ==================== */
+.free-input-area {
+  margin-top: 12px;
+}
+
+.free-input-divider {
+  display: flex;
+  align-items: center;
+  margin: 8px 0 12px;
+  gap: 12px;
+}
+
+.free-input-divider::before,
+.free-input-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.free-input-divider span {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  white-space: nowrap;
+}
+
+.free-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.free-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--card);
+  transition: border-color 0.2s;
+}
+
+.free-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.free-input::placeholder {
+  color: var(--text-light);
+  font-size: 0.8rem;
+}
+
+.btn-free {
+  padding: 10px 18px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border: 2px solid var(--primary-light);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-free:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.btn-free:disabled {
+  background: #f0ebe4;
+  color: var(--text-light);
+  border-color: #f0ebe4;
+  cursor: not-allowed;
+}
+
+/* ==================== Gained Fragment ==================== */
+.gained-fragment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  background: #fef9f0;
+  border: 1px dashed var(--primary-light);
+  border-radius: 12px;
+  animation: popIn 0.4s ease;
+}
+
+.gained-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 1px;
+}
+
+.gained-value {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
+.result-text {
+  animation: fadeIn 0.4s ease;
+}
+
 /* ==================== Progress Bar ==================== */
 .progress-container {
   margin-bottom: 20px;

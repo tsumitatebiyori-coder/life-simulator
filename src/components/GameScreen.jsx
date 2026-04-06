@@ -9,12 +9,16 @@ const AGE_LABEL = {
   15: '高校進学',
   18: '卒業・進路',
   20: '成人',
+  24: '体感時間の折り返し',
 }
 
 export default function GameScreen({ age, traits, settings, history, fragments, onAdvance }) {
   const [eventData, setEventData] = useState(null)
   const [selectedChoice, setSelectedChoice] = useState(null)
+  const [freeText, setFreeText] = useState('')
+  const [freeResult, setFreeResult] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isFreeLoading, setIsFreeLoading] = useState(false)
   const [useAI, setUseAI] = useState(false)
   const generatedAge = useRef(-1)
 
@@ -25,6 +29,8 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
     setIsLoading(true)
     setEventData(null)
     setSelectedChoice(null)
+    setFreeText('')
+    setFreeResult(null)
 
     const generate = async () => {
       try {
@@ -35,7 +41,7 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
           throw new Error('use template')
         }
       } catch {
-        const result = getTemplateEvent(age, traits, settings, history)
+        const result = getTemplateEvent(age, traits)
         setEventData(result)
       } finally {
         setIsLoading(false)
@@ -47,16 +53,54 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
 
   const handleChoice = (choice) => {
     setSelectedChoice(choice)
+    setFreeResult(null)
   }
 
-  const handleNext = () => {
-    if (selectedChoice) {
-      onAdvance(selectedChoice.resultEvent, selectedChoice.traits, selectedChoice.fragment)
-    } else if (eventData) {
-      onAdvance(eventData.event, eventData.traits, eventData.fragment)
+  const handleFreeSubmit = async () => {
+    if (!freeText.trim()) return
+
+    if (useAI) {
+      setIsFreeLoading(true)
+      try {
+        const result = await generateWithAI(age, traits, settings, history, freeText.trim())
+        setFreeResult({
+          resultEvent: result.event,
+          fragment: result.fragment || freeText.trim(),
+          traits: result.traits,
+        })
+        setSelectedChoice(null)
+      } catch {
+        // AI失敗時はテンプレートのfreeResult + ユーザー入力をかけらに
+        const fallback = eventData?.freeResult || { resultEvent: `${freeText.trim()}── そう決めた${age}歳の日。`, traits: {} }
+        setFreeResult({
+          resultEvent: fallback.resultEvent,
+          fragment: freeText.trim(),
+          traits: fallback.traits,
+        })
+        setSelectedChoice(null)
+      } finally {
+        setIsFreeLoading(false)
+      }
+    } else {
+      const fallback = eventData?.freeResult || { resultEvent: `${freeText.trim()}── そう決めた${age}歳の日。`, traits: {} }
+      setFreeResult({
+        resultEvent: fallback.resultEvent,
+        fragment: freeText.trim(),
+        traits: fallback.traits,
+      })
+      setSelectedChoice(null)
     }
   }
 
+  const handleNext = () => {
+    if (freeResult) {
+      onAdvance(freeResult.resultEvent, freeResult.traits, freeResult.fragment)
+    } else if (selectedChoice) {
+      onAdvance(selectedChoice.resultEvent, selectedChoice.traits, selectedChoice.fragment)
+    }
+  }
+
+  const hasResult = selectedChoice || freeResult
   const progress = (age / 24) * 100
 
   return (
@@ -84,18 +128,20 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
           </div>
         ) : (
           <>
-            {eventData?.type === 'choice' && !selectedChoice && (
+            {/* 状況テキスト（結果がまだ出ていない時） */}
+            {!hasResult && eventData && (
               <div className="event-text">{eventData.event}</div>
-            )}
-            {eventData?.type === 'event' && (
-              <div className="event-text">{eventData.event}</div>
-            )}
-            {selectedChoice && (
-              <div className="event-text">{selectedChoice.resultEvent}</div>
             )}
 
-            {/* Choices */}
-            {eventData?.type === 'choice' && !selectedChoice && (
+            {/* 結果テキスト */}
+            {hasResult && (
+              <div className="event-text result-text">
+                {freeResult ? freeResult.resultEvent : selectedChoice.resultEvent}
+              </div>
+            )}
+
+            {/* 選択肢エリア（まだ選んでいない時） */}
+            {!hasResult && eventData && (
               <div className="choices-container">
                 <div className="choices-prompt">{eventData.prompt}</div>
                 {eventData.choices.map((choice, i) => (
@@ -104,6 +150,43 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
                     <div className="choice-btn-desc">{choice.description}</div>
                   </button>
                 ))}
+
+                {/* 自由入力 */}
+                <div className="free-input-area">
+                  <div className="free-input-divider">
+                    <span>または</span>
+                  </div>
+                  <div className="free-input-row">
+                    <input
+                      type="text"
+                      className="free-input"
+                      placeholder="自分で決める..."
+                      value={freeText}
+                      onChange={(e) => setFreeText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && freeText.trim()) handleFreeSubmit()
+                      }}
+                      disabled={isFreeLoading}
+                    />
+                    <button
+                      className="btn btn-free"
+                      onClick={handleFreeSubmit}
+                      disabled={!freeText.trim() || isFreeLoading}
+                    >
+                      {isFreeLoading ? '...' : '決定'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 獲得したかけら表示 */}
+            {hasResult && (
+              <div className="gained-fragment">
+                <span className="gained-label">かけら獲得</span>
+                <span className="gained-value">
+                  {freeResult ? freeResult.fragment : selectedChoice.fragment}
+                </span>
               </div>
             )}
           </>
@@ -142,9 +225,9 @@ export default function GameScreen({ age, traits, settings, history, fragments, 
         )}
 
         {/* Next Button */}
-        {!isLoading && (eventData?.type === 'event' || selectedChoice) && (
+        {!isLoading && hasResult && (
           <button className="btn btn-primary" onClick={handleNext}>
-            {age === 24 ? 'エンディングへ' : '次の年へ →'}
+            {age >= 24 ? 'エンディングへ' : '次の年へ →'}
           </button>
         )}
       </div>
